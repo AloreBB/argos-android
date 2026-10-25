@@ -24,19 +24,19 @@ class SecretStoreTest {
 
     @Test
     fun `round trip per server and kind`() {
-        store.put("a", SecretKind.PASSWORD, "s3cr3t ñ")
+        store.put("a", SecretKind.PASSWORD, "valor de prueba ñ")
         store.put("b", SecretKind.PASSWORD, "other")
-        assertEquals("s3cr3t ñ", store.get("a", SecretKind.PASSWORD))
+        assertEquals("valor de prueba ñ", store.get("a", SecretKind.PASSWORD))
         assertEquals("other", store.get("b", SecretKind.PASSWORD))
         assertNull(store.get("a", SecretKind.PASSPHRASE))
     }
 
     @Test
     fun `nothing is stored in plain text`() {
-        store.put("a", SecretKind.PRIVATE_KEY, "-----BEGIN OPENSSH PRIVATE KEY-----")
+        store.put("a", SecretKind.PRIVATE_KEY, "contenido-de-clave-de-prueba")
         val prefs = ApplicationProvider.getApplicationContext<android.content.Context>()
             .getSharedPreferences("argos_secrets", 0).all.values.joinToString()
-        assertFalse(prefs, "OPENSSH" in prefs)
+        assertFalse(prefs, "contenido-de-clave" in prefs)
     }
 
     @Test

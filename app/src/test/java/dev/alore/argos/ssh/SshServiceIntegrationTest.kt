@@ -80,21 +80,22 @@ class SshServiceIntegrationTest {
 
     @Test
     fun `c password auth and rejected credentials`() = runBlocking<Unit> {
-        val ok = SshConfig(HOST, port, "argos", AuthMethod.PASSWORD, password = "argos-pass")
+        val ok = SshConfig(HOST, port, "argos", AuthMethod.PASSWORD, password = System.getenv("ARGOS_IT_PASSWORD"))
         assertTrue(service(ok).isTmuxInstalled())
 
-        val bad = ok.copy(password = "nope")
+        val bad = ok.copy(password = ok.password + "-wrong")
         val error = runCatching { service(bad).isTmuxInstalled() }.exceptionOrNull()
         assertTrue(error.toString(), error is SshError.AuthFailed)
     }
 
     @Test
     fun `d encrypted key needs the right passphrase`() = runBlocking<Unit> {
-        assertTrue(service(keyConfig(key = "id_ed25519_enc", passphrase = "secreto")).isTmuxInstalled())
+        val passphrase = System.getenv("ARGOS_IT_PASSPHRASE")
+        assertTrue(service(keyConfig(key = "id_ed25519_enc", passphrase = passphrase)).isTmuxInstalled())
         assertThrows(SshError.KeyParseFailed::class.java) {
-            SshService.loadKey(keyConfig(key = "id_ed25519_enc", passphrase = "mala"))
+            SshService.loadKey(keyConfig(key = "id_ed25519_enc", passphrase = "$passphrase-wrong"))
         }
-        assertThrows(SshError.KeyParseFailed::class.java) { SshService.loadKey(keyConfig().copy(privateKey = "basura")) }
+        assertThrows(SshError.KeyParseFailed::class.java) { SshService.loadKey(keyConfig().copy(privateKey = "not a key")) }
     }
 
     @Test
@@ -126,11 +127,19 @@ class SshServiceIntegrationTest {
         val svc = service()
         val content = "hola Argos ✓\n"
         val path = svc.uploadFile(content.byteInputStream(), "mi archivo (1).txt")
-        assertTrue(path, path.matches(Regex("/tmp/argos-\\d+-mi_archivo__1_.txt")))
+        assertTrue(path, path.matches(Regex("/tmp/argos-\\d+-[0-9a-f]{8}-mi_archivo__1_.txt")))
         assertEquals(content, svc.capture("cat $path").stdout)
+        assertEquals("private to the user", "600", svc.capture("stat -c %a $path").stdout.trim())
+
+        // A pre-existing symlink at the path must never be followed.
+        val victim = "/home/argos/victim.txt"
+        svc.capture("echo intact > $victim && ln -sf $victim /tmp/argos-trap")
+        val trap = runCatching { svc.upload("pwned".byteInputStream(), "/tmp/argos-trap") }
+        assertTrue("upload onto an existing path must fail", trap.isFailure)
+        assertEquals("intact", svc.capture("cat $victim").stdout.trim())
 
         val image = svc.uploadPastedImage(byteArrayOf(1, 2, 3).inputStream(), "png")
-        assertTrue(image, image.matches(Regex("/tmp/argos-pasted-\\d+.png")))
+        assertTrue(image, image.matches(Regex("/tmp/argos-pasted-\\d+-[0-9a-f]{8}.png")))
         assertEquals("3", svc.capture("stat -c %s $image").stdout.trim())
     }
 

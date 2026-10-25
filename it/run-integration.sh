@@ -8,12 +8,17 @@ WORK="$(mktemp -d)"
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; rm -rf "$WORK"; }
 trap cleanup EXIT
 
+# Fresh random credentials every run: nothing secret-looking lives in the repo.
+ARGOS_IT_PASSWORD="$(openssl rand -hex 16)"
+ARGOS_IT_PASSPHRASE="$(openssl rand -hex 12)"
+export ARGOS_IT_PASSWORD ARGOS_IT_PASSPHRASE
+
 ssh-keygen -q -t ed25519 -N "" -C argos-it -f "$WORK/id_ed25519"
-ssh-keygen -q -t ed25519 -N "secreto" -C argos-it-enc -f "$WORK/id_ed25519_enc"
+ssh-keygen -q -t ed25519 -N "$ARGOS_IT_PASSPHRASE" -C argos-it-enc -f "$WORK/id_ed25519_enc"
 chmod 644 "$WORK"/*.pub
 
 docker build -q -t argos-it-sshd it/ >/dev/null
-docker run -d --name "$NAME" -p 127.0.0.1::22 -v "$WORK:/keys:ro" argos-it-sshd >/dev/null
+docker run -d --name "$NAME" -p 127.0.0.1::22 -e ARGOS_IT_PASSWORD -v "$WORK:/keys:ro" argos-it-sshd >/dev/null
 PORT="$(docker port "$NAME" 22/tcp | head -1 | sed 's/.*://')"
 
 for _ in $(seq 1 30); do

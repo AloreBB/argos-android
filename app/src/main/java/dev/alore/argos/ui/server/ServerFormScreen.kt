@@ -306,7 +306,7 @@ private fun PasteKeyDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
             OutlinedTextField(
                 text,
                 { text = it },
-                placeholder = { Text("-----BEGIN OPENSSH PRIVATE KEY-----") },
+                placeholder = { Text("Pega aquí tu clave privada (OpenSSH o PEM)") },
                 textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp),
