@@ -20,6 +20,7 @@ class RemoteTerminalSessionTest {
     private val sent = ByteArrayOutputStream()
     private val sizes = mutableListOf<Pair<Int, Int>>()
     private var copied: String? = null
+    private var copiedLocally: String? = null
     private var finished = false
 
     private val transport = object : TerminalSession.Transport {
@@ -31,7 +32,8 @@ class RemoteTerminalSessionTest {
         override fun onTextChanged(changedSession: TerminalSession) = Unit
         override fun onTitleChanged(changedSession: TerminalSession) = Unit
         override fun onSessionFinished(finishedSession: TerminalSession) { finished = true }
-        override fun onCopyTextToClipboard(session: TerminalSession, text: String?) { copied = text }
+        override fun onCopyTextToClipboard(session: TerminalSession, text: String?) { copiedLocally = text }
+        override fun onRemoteClipboardCopy(session: TerminalSession, text: String?) { copied = text }
         override fun onPasteTextFromClipboard(session: TerminalSession?) = Unit
         override fun onBell(session: TerminalSession) = Unit
         override fun onColorsChanged(session: TerminalSession) = Unit
@@ -88,6 +90,9 @@ class RemoteTerminalSessionTest {
         session.appendRemoteOutput(osc, 0, osc.size)
         idle()
         assertEquals("copiado ✓", copied)
+        assertEquals("OSC 52 must be reported as remote, not as a local copy", null, copiedLocally)
+        session.copyLocalSelection("local")
+        assertEquals("local", copiedLocally)
     }
 
     @Test

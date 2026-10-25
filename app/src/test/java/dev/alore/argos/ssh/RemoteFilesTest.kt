@@ -1,6 +1,8 @@
 package dev.alore.argos.ssh
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RemoteFilesTest {
@@ -15,7 +17,13 @@ class RemoteFilesTest {
 
     @Test
     fun `paths live in tmp`() {
-        assertEquals("/tmp/argos-pasted-42.png", RemoteFiles.pastedImagePath("png", 42))
-        assertEquals("/tmp/argos-42-a_b.txt", RemoteFiles.uploadedFilePath("a b.txt", 42))
+        assertEquals("/tmp/argos-pasted-42-cafe0001.png", RemoteFiles.pastedImagePath("png", 42, "cafe0001"))
+        assertEquals("/tmp/argos-42-cafe0001-a_b.txt", RemoteFiles.uploadedFilePath("a b.txt", 42, "cafe0001"))
+    }
+
+    @Test
+    fun `default token makes names unpredictable`() {
+        assertTrue(RemoteFiles.randomToken().matches(Regex("[0-9a-f]{8}")))
+        assertNotEquals(RemoteFiles.uploadedFilePath("x", 1), RemoteFiles.uploadedFilePath("x", 1))
     }
 }

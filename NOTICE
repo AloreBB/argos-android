@@ -12,6 +12,8 @@ They are vendored in terminal/ with these modifications:
   JNI; it is fed by a remote byte stream (an SSH PTY channel) via a Transport
   interface. JNI.java and the native code were removed.
 - TerminalSessionClient#setTerminalShellPid was removed (there is no local PID).
+- OSC 52 (remote clipboard writes) goes to a new TerminalSessionClient#onRemoteClipboardCopy,
+  separate from local "Copy" of a selection (TerminalSession#copyLocalSelection).
 - terminal-view's strings were translated to Spanish.
 
 It also uses, as dependencies (not vendored): sshj (Apache 2.0),

@@ -298,9 +298,25 @@ class TerminalViewModel(application: Application, savedStateHandle: SavedStateHa
             attachedView?.takeIf { it.currentSession === finishedSession }?.onScreenUpdated()
         }
 
-        /** OSC 52 from tmux / remote apps and "Copiar" from the selection menu. */
+        /** "Copiar" from the local selection menu. */
         override fun onCopyTextToClipboard(session: TerminalSession, text: String?) {
             if (!text.isNullOrEmpty()) copyToClipboard(text)
+        }
+
+        /**
+         * OSC 52: the server (tmux, Claude Code's "c to copy"…) sets the clipboard. Useful, but
+         * remote-controlled: never silent (always announced) and size-capped, so output from an
+         * untrusted file can't quietly swap what the user is about to paste elsewhere.
+         */
+        override fun onRemoteClipboardCopy(session: TerminalSession, text: String?) {
+            if (text.isNullOrEmpty()) return
+            if (text.length > MAX_REMOTE_CLIPBOARD_CHARS) {
+                Log.w(TAG, "Ignored OSC 52 copy of ${text.length} chars from $sessionName")
+                _messages.trySend("Se ignoró una copia al portapapeles demasiado grande enviada por el servidor.")
+                return
+            }
+            copyToClipboard(text)
+            _messages.trySend("El servidor copió ${text.length} caracteres al portapapeles.")
         }
 
         override fun onPasteTextFromClipboard(session: TerminalSession?) = pasteFromClipboard()
@@ -346,6 +362,7 @@ class TerminalViewModel(application: Application, savedStateHandle: SavedStateHa
         const val MAX_AUTO_RECONNECTS = 5
         private const val TAG = "Argos/Terminal"
         private const val REVEAL_DELAY_MS = 350L
+        private const val MAX_REMOTE_CLIPBOARD_CHARS = 100_000
         /** Local scrollback; tmux keeps its own (history-limit 50000). */
         private const val TRANSCRIPT_ROWS = 2000
     }

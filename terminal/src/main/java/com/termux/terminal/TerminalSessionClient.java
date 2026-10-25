@@ -16,7 +16,11 @@ public interface TerminalSessionClient {
 
     void onSessionFinished(@NonNull TerminalSession finishedSession);
 
+    /** The user copied a selection locally ("Copiar"). */
     void onCopyTextToClipboard(@NonNull TerminalSession session, String text);
+
+    /** The REMOTE side asked to set the clipboard (OSC 52). Argos addition: kept apart from local copies. */
+    void onRemoteClipboardCopy(@NonNull TerminalSession session, String text);
 
     void onPasteTextFromClipboard(@Nullable TerminalSession session);
 

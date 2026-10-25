@@ -135,7 +135,7 @@ public class TextSelectionCursorController implements CursorController {
                 switch (item.getItemId()) {
                     case ACTION_COPY:
                         String selectedText = getSelectedText();
-                        terminalView.mTermSession.onCopyTextToClipboard(selectedText);
+                        terminalView.mTermSession.copyLocalSelection(selectedText);
                         terminalView.stopTextSelectionMode();
                         break;
                     case ACTION_PASTE:

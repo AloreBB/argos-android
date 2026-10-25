@@ -187,8 +187,14 @@ public final class TerminalSession extends TerminalOutput {
         return !mFinished;
     }
 
+    /** Called by the emulator for OSC 52, i.e. remote-initiated. */
     @Override
     public void onCopyTextToClipboard(String text) {
+        mClient.onRemoteClipboardCopy(this, text);
+    }
+
+    /** Called by the text selection UI when the user copies locally. */
+    public void copyLocalSelection(String text) {
         mClient.onCopyTextToClipboard(this, text);
     }
 

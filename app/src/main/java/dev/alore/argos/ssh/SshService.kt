@@ -17,6 +17,7 @@ import net.schmizz.sshj.common.DisconnectReason
 import net.schmizz.sshj.connection.channel.direct.PTYMode
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.connection.channel.direct.SessionChannel
+import net.schmizz.sshj.sftp.FileAttributes
 import net.schmizz.sshj.sftp.OpenMode
 import net.schmizz.sshj.transport.TransportException
 import net.schmizz.sshj.userauth.UserAuthException
@@ -161,12 +162,16 @@ class SshService(
     suspend fun uploadFile(input: InputStream, originalName: String): String =
         upload(input, RemoteFiles.uploadedFilePath(originalName))
 
-    private suspend fun upload(input: InputStream, remotePath: String): String {
+    /** `internal` for tests (fixed paths); the app goes through the two helpers above. */
+    internal suspend fun upload(input: InputStream, remotePath: String): String {
         val client = connectedClient()
         withContext(Dispatchers.IO) {
             try {
                 client.newSFTPClient().use { sftp ->
-                    sftp.open(remotePath, EnumSet.of(OpenMode.WRITE, OpenMode.CREAT, OpenMode.TRUNC)).use { file ->
+                    // EXCL: never follow/overwrite something pre-created in the shared /tmp
+                    // (e.g. a symlink); 0600: other users of the server can't read the upload.
+                    val privateFile = FileAttributes.Builder().withPermissions(PRIVATE_FILE_MODE).build()
+                    sftp.open(remotePath, EnumSet.of(OpenMode.WRITE, OpenMode.CREAT, OpenMode.EXCL), privateFile).use { file ->
                         file.RemoteFileOutputStream().use { out -> input.copyTo(out) }
                     }
                 }
@@ -306,6 +311,7 @@ class SshService(
         private const val TAG = "Argos/SSH"
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val KEEP_ALIVE_SECONDS = 10
+        private const val PRIVATE_FILE_MODE = 0x180 // 0600
 
         /**
          * Parses the private key eagerly (sshj parses lazily) so a wrong format or passphrase is

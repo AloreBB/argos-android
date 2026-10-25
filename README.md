@@ -28,8 +28,8 @@ Requiere **Android 8.0+** (API 26).
 - **Sesiones agrupadas**: el prefijo antes del primer `/` define el grupo (`magic-agents/backend` → *magic-agents*). Las que no tienen `/` caen en *General*. Incluye búsqueda sin distinguir mayúsculas ni tildes, y *pull-to-refresh*.
 - **Terminal en vivo**: PTY sobre SSH con `tmux -u attach` (UTF-8 forzado). Se renderiza con el emulador de [Termux](https://github.com/termux/termux-app) (colores, mouse de tmux, selección y copia, pellizco para cambiar el tamaño de fuente).
 - **Fila de teclas extra**: `CTRL`/`ALT` (de un solo uso), `ESC`, `TAB`, `^B` (prefijo de tmux), flechas, `PGUP`/`PGDN`, `HOME`/`END`, `- / | ~`.
-- **Portapapeles OSC 52**: lo que copian tmux o las apps remotas (p. ej. Claude Code) llega al portapapeles de Android.
-- **Subir archivos e imágenes**: el botón 📎 sube archivos por SFTP a `/tmp/argos-<ts>-<nombre>` y escribe la ruta en el terminal. **Pegar** con una imagen en el portapapeles la sube a `/tmp/argos-pasted-<ts>.png`, útil para pasarle capturas a Claude Code.
+- **Portapapeles OSC 52**: lo que copian tmux o las apps remotas (p. ej. Claude Code) llega al portapapeles de Android. Nunca en silencio: cada copia remota se avisa y tiene un tope de 100 000 caracteres.
+- **Subir archivos e imágenes**: el botón 📎 sube archivos por SFTP a `/tmp/argos-<ts>-<token>-<nombre>` y escribe la ruta en el terminal. **Pegar** con una imagen en el portapapeles la sube a `/tmp/argos-pasted-<ts>-<token>.png`, útil para pasarle capturas a Claude Code. Los archivos se crean en exclusiva (nunca siguen un symlink preexistente) con permisos `0600`.
 - **Detach, no kill**: salir del terminal hace *detach* y la sesión tmux sigue viva en el servidor.
 - **Reconexión automática**: si se cae la red, reintenta con backoff exponencial (1, 2, 4, 8 y 16 s, hasta 5 intentos). Los errores no transitorios (clave inválida, credenciales rechazadas, host key cambiada) no se reintentan.
 - **Temas**: Sistema, Oscuro, Claro y Solarized Dark.
@@ -48,7 +48,7 @@ Requisitos: JDK 21 y el Android SDK (compileSdk 37). El SDK se descarga solo si 
 
 ### Tests de integración (SSH real)
 
-`it/run-integration.sh` levanta un `sshd` desechable en Docker, enlazado **solo a 127.0.0.1** en un puerto aleatorio y sin tmux preinstalado. Contra ese servidor corre:
+`it/run-integration.sh` levanta un `sshd` desechable en Docker, enlazado **solo a 127.0.0.1** en un puerto aleatorio y sin tmux preinstalado. Las claves, la passphrase y la contraseña de prueba se generan aleatoriamente en cada corrida; el repo no tiene credenciales. Contra ese servidor corre:
 
 - `SshServiceIntegrationTest`: bootstrap (instalación con `sudo -n apt`, instrucción manual sin sudo), CRUD de sesiones con *quoting* hostil, auth por clave, por passphrase y por contraseña, TOFU (detección de cambio y "olvidar"), SFTP y PTY (tecleo, UTF-8, window-change, detach sin matar, EOF al hacer detach).
 - `AppEndToEndTest`: la UI real (Compose + `TerminalView`) en Robolectric. Lista sesiones, abre el terminal, verifica la salida en el emulador, vuelve atrás (detach) y guarda capturas en `app/build/screenshots/`.
