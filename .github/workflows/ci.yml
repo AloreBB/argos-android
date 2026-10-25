@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Unit + Robolectric tests, lint, debug APK
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain
+
+      # Real SSH: throwaway sshd in Docker (127.0.0.1 only) + UI end-to-end with screenshots.
+      - name: Integration tests
+        run: ./it/run-integration.sh
+
+      - name: Upload screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/screenshots/
+            app/build/reports/
+          retention-days: 14
+          if-no-files-found: ignore

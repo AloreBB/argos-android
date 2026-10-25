@@ -1,0 +1,66 @@
+name: Release APK
+
+# Push a tag vX.Y.Z -> signed release APK attached to a GitHub Release.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Restore signing key
+        env:
+          ARGOS_KEYSTORE_BASE64: ${{ secrets.ARGOS_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ARGOS_KEYSTORE_BASE64" ]; then
+            echo "::error::Missing ARGOS_KEYSTORE_BASE64 secret: refusing to publish an APK signed with a throwaway key."
+            exit 1
+          fi
+          echo "$ARGOS_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "ARGOS_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Test and build release APK
+        env:
+          ARGOS_KEYSTORE_PASSWORD: ${{ secrets.ARGOS_KEYSTORE_PASSWORD }}
+          ARGOS_KEY_ALIAS: ${{ secrets.ARGOS_KEY_ALIAS }}
+          ARGOS_KEY_PASSWORD: ${{ secrets.ARGOS_KEY_PASSWORD }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease -PversionName="$VERSION" --console=plain
+
+      - name: Verify signature and package
+        run: |
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          SRC=app/build/outputs/apk/release/app-release.apk
+          "$APKSIGNER" verify --print-certs "$SRC" | tee certs.txt
+          if grep -q "CN=Android Debug" certs.txt; then
+            echo "::error::APK is signed with the debug key"; exit 1
+          fi
+          cp "$SRC" "Argos-$VERSION.apk"
+          sha256sum "Argos-$VERSION.apk" > "Argos-$VERSION.apk.sha256"
+          cat "Argos-$VERSION.apk.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "Argos-$VERSION.apk" "Argos-$VERSION.apk.sha256" \
+            --title "Argos $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Instalación: descarga Argos-$VERSION.apk en el teléfono y ábrelo (permite \"instalar apps desconocidas\" para tu navegador). Requiere Android 8.0+."
