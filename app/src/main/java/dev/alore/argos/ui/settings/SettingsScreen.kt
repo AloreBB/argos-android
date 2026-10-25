@@ -35,6 +35,21 @@ import dev.alore.argos.ArgosApplication
 import dev.alore.argos.BuildConfig
 import dev.alore.argos.data.TerminalSettings
 import dev.alore.argos.data.TerminalTheme
+import dev.alore.argos.data.TerminalPalette
+import dev.alore.argos.data.palette
+import dev.alore.argos.ui.terminal.TerminalFont
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,12 +83,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 valueRange = TerminalSettings.MIN_FONT_SIZE.toFloat()..TerminalSettings.MAX_FONT_SIZE.toFloat(),
                 steps = TerminalSettings.MAX_FONT_SIZE - TerminalSettings.MIN_FONT_SIZE - 1,
             )
-            Text(
-                "\$ tmux attach -t main",
-                fontFamily = FontFamily.Monospace,
-                fontSize = fontSize.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            TerminalPreview(theme.palette(isSystemInDarkTheme()), fontSize)
             Text(
                 "También puedes ajustarlo pellizcando el terminal.",
                 style = MaterialTheme.typography.bodySmall,
@@ -91,7 +101,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(selected = option == theme, onClick = null)
-                        Text(option.label, Modifier.padding(start = 12.dp))
+                        Text(option.label, Modifier.padding(start = 12.dp).weight(1f))
+                        Swatches(option.palette(isSystemInDarkTheme()))
                     }
                 }
             }
@@ -107,3 +118,45 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
+/** What the terminal will look like: same font, size and palette. */
+@Composable
+private fun TerminalPreview(palette: TerminalPalette, fontSize: Int) {
+    val fg = Color(palette.foreground)
+    fun c(index: Int) = Color(palette.ansi[index])
+    val text = buildAnnotatedString {
+        withStyle(SpanStyle(color = c(2))) { append("kevin@server") }
+        append(":")
+        withStyle(SpanStyle(color = c(4))) { append("~/proyectos") }
+        append("$ tmux ls\n")
+        append("main: 3 windows ")
+        withStyle(SpanStyle(color = c(8))) { append("(attached)") }
+        append("\n")
+        withStyle(SpanStyle(color = c(1))) { append("error") }
+        append(" · ")
+        withStyle(SpanStyle(color = c(3))) { append("warn") }
+        append(" · ")
+        withStyle(SpanStyle(color = c(5))) { append("info") }
+        append(" · ")
+        withStyle(SpanStyle(color = c(6))) { append("debug") }
+    }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(palette.background))
+            .border(1.dp, fg.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+    ) {
+        Text(text, color = fg, fontFamily = TerminalFont, fontSize = fontSize.sp, lineHeight = (fontSize * 1.3f).sp)
+    }
+}
+
+@Composable
+private fun Swatches(palette: TerminalPalette) {
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Box(Modifier.size(14.dp).clip(CircleShape).background(Color(palette.background)).border(1.dp, Color(0x33000000), CircleShape))
+        for (index in listOf(1, 2, 3, 4, 5)) {
+            Box(Modifier.size(14.dp).clip(CircleShape).background(Color(palette.ansi[index])))
+        }
+    }
+}

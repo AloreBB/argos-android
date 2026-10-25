@@ -1,9 +1,11 @@
 package dev.alore.argos.ui.terminal
 
 import android.view.KeyEvent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -11,17 +13,20 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.alore.argos.data.TerminalPalette
 
 /** A key of the extra row: an Android key code (respects cursor/keypad app modes), a char, or raw bytes. */
 sealed interface ExtraKey {
@@ -53,41 +58,51 @@ private val KEYS: List<ExtraKey> = listOf(
 )
 
 @Composable
-fun ExtraKeysBar(modifiers: StickyModifiers, enabled: Boolean, onKey: (ExtraKey) -> Unit) {
-    Surface(tonalElevation = 2.dp) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            ToggleKey("CTRL", "Control (siguiente tecla)", modifiers.ctrl, enabled) { modifiers.ctrl = !modifiers.ctrl }
-            ToggleKey("ALT", "Alt (siguiente tecla)", modifiers.alt, enabled) { modifiers.alt = !modifiers.alt }
-            for (key in KEYS) {
-                OutlinedButton(
-                    onClick = { onKey(key) },
-                    enabled = enabled,
-                    contentPadding = KEY_PADDING,
-                    modifier = Modifier.heightIn(min = 40.dp).widthIn(min = 44.dp).semantics { contentDescription = key.description },
-                ) { KeyLabel(key.label) }
-            }
-        }
+fun ExtraKeysBar(palette: TerminalPalette, modifiers: StickyModifiers, enabled: Boolean, onKey: (ExtraKey) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Color(palette.chrome))
+            .navigationBarsPadding()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Key("CTRL", "Control (siguiente tecla)", palette, enabled, active = modifiers.ctrl) { modifiers.ctrl = !modifiers.ctrl }
+        Key("ALT", "Alt (siguiente tecla)", palette, enabled, active = modifiers.alt) { modifiers.alt = !modifiers.alt }
+        for (key in KEYS) Key(key.label, key.description, palette, enabled) { onKey(key) }
     }
 }
 
+/** A compact, terminal-colored key: tinted surface, accent fill when a sticky modifier is armed. */
 @Composable
-private fun ToggleKey(label: String, description: String, active: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val modifier = Modifier.heightIn(min = 40.dp).widthIn(min = 52.dp).semantics { contentDescription = description }
-    if (active) {
-        FilledTonalButton(onClick = onClick, enabled = enabled, contentPadding = KEY_PADDING, modifier = modifier) { KeyLabel(label) }
-    } else {
-        OutlinedButton(onClick = onClick, enabled = enabled, contentPadding = KEY_PADDING, modifier = modifier) { KeyLabel(label) }
+private fun Key(
+    label: String,
+    description: String,
+    palette: TerminalPalette,
+    enabled: Boolean,
+    active: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val fg = Color(palette.foreground)
+    val accent = Color(palette.ansi[4])
+    val container = if (active) accent else fg.copy(alpha = 0.08f)
+    val content = when {
+        active -> Color(palette.background)
+        enabled -> fg
+        else -> fg.copy(alpha = 0.35f)
+    }
+    Box(
+        Modifier
+            .heightIn(min = 38.dp)
+            .widthIn(min = 44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(container)
+            .clickable(enabled = enabled, onClick = onClick)
+            .semantics { contentDescription = description; role = Role.Button }
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = content, fontFamily = TerminalFont, fontSize = 13.sp)
     }
 }
-
-@Composable
-private fun KeyLabel(text: String) = Text(text, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelLarge)
-
-private val KEY_PADDING = PaddingValues(horizontal = 8.dp, vertical = 0.dp)

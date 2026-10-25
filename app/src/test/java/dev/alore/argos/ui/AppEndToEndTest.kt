@@ -87,7 +87,12 @@ class AppEndToEndTest {
         compose.onNode(hasText("demo")).performClick()
         compose.waitUntilDoesNotExist(hasText("Conectando a la sesión"), timeoutMillis = 30_000)
         runBlocking {
-            service.capture("tmux send-keys -t 'e2e/demo' 'echo hola desde Argos ✓ && tmux ls' Enter")
+            // ASCII-only command line (the container's shell has no UTF-8 locale); the output
+            // exercises ANSI colors, box drawing and the symbols Claude Code uses.
+            val demo = "clear; tmux ls; ls --color=always / | head -6 | tr '\\n' ' '; echo; " +
+                "printf '\\033[31mrojo \\033[32mverde \\033[33mamarillo \\033[34mazul \\033[35mmagenta \\033[36mcian \\033[1;37mnegrita\\033[0m\\n'; " +
+                "printf '\\342\\225\\255\\342\\224\\200 Claude Code \\342\\224\\200\\342\\225\\256\\n\\342\\234\\273 Listo \\342\\217\\272 hola desde Argos \\342\\234\\223\\n  \\342\\216\\277 Read 3 files \\342\\240\\213 \\342\\217\\270 \\342\\234\\224\\n'"
+            service.capture("tmux send-keys -t 'e2e/demo' ${dev.alore.argos.model.ShellQuoting.singleQuoted(demo)} Enter")
         }
         compose.waitUntil(15_000) { terminalText().contains("hola desde Argos ✓") }
         compose.waitUntil(15_000) { terminalText().contains("e2e/api:") }

@@ -1,6 +1,18 @@
 package dev.alore.argos.ui.terminal
 
 import android.content.Context
+import android.app.Activity
+import android.os.Build
+import android.graphics.Typeface
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.view.WindowCompat
+import dev.alore.argos.R
 import android.util.Log
 import android.util.TypedValue
 import android.view.KeyEvent
@@ -80,7 +92,11 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
     val reconnectAttempt by viewModel.autoReconnectAttempt.collectAsStateWithLifecycle()
     val fontSize by settings.fontSize.collectAsStateWithLifecycle()
     val theme by settings.theme.collectAsStateWithLifecycle()
-    val palette = theme.palette(isSystemInDarkTheme())
+    val systemDark = isSystemInDarkTheme()
+    val palette = theme.palette(systemDark)
+    val fg = Color(palette.foreground)
+    val chrome = Color(palette.chrome)
+    StatusBarIconsFor(palette, restoreLight = !systemDark)
 
     val modifiers = remember { StickyModifiers() }
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
@@ -97,12 +113,25 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
     }
 
     Scaffold(
+        containerColor = chrome,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = chrome,
+                    titleContentColor = fg,
+                    navigationIconContentColor = fg,
+                    actionIconContentColor = fg,
+                ),
                 title = {
                     Column {
-                        Text(viewModel.sessionName, fontFamily = FontFamily.Monospace, maxLines = 1)
-                        Text("tmux attach", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            viewModel.sessionName,
+                            fontFamily = TerminalFont,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text("tmux attach", fontFamily = TerminalFont, style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.55f))
                     }
                 },
                 navigationIcon = {
@@ -132,13 +161,15 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
         ) {
             Box(Modifier.weight(1f).fillMaxWidth().background(Color(palette.background))) {
                 AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    // Breathing room around the text, in the terminal's own background color.
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp),
                     factory = { ctx ->
                         TerminalView(ctx, null).apply {
                             setTerminalViewClient(ArgosTerminalViewClient(this, modifiers, settings))
-                            // setTextSize creates the renderer (monospace by default); anything
-                            // touching the renderer (e.g. setTypeface) must come after it.
+                            // setTextSize creates the renderer; anything touching the renderer
+                            // (setTypeface) must come after it. Later size changes keep the font.
                             setTextSize(spToPx(ctx, fontSize))
+                            terminalTypeface(ctx)?.let(::setTypeface)
                             isFocusable = true
                             isFocusableInTouchMode = true
                             keepScreenOn = true
@@ -146,8 +177,11 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                         }
                     },
                     update = { view ->
-                        // Re-runs only when fontSize/session/palette change.
-                        view.setTextSize(spToPx(view.context, fontSize))
+                        val textSize = spToPx(view.context, fontSize)
+                        if (view.getTag(R.id.argos_text_size) != textSize) {
+                            view.setTextSize(textSize)
+                            view.setTag(R.id.argos_text_size, textSize)
+                        }
                         val current = session
                         if (current != null && view.currentSession !== current) {
                             view.attachSession(current)
@@ -158,9 +192,10 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                 )
 
                 when (val s = status) {
-                    TerminalStatus.Connecting -> ConnectingOverlay(viewModel.sessionName, Color(palette.background))
+                    TerminalStatus.Connecting -> ConnectingOverlay(viewModel.sessionName, palette)
                     TerminalStatus.Connected -> Unit
                     TerminalStatus.Ended -> StatusBanner(
+                        palette = palette,
                         icon = Icons.Outlined.LinkOff,
                         title = "Sesión desconectada",
                         message = "Te desenganchaste de la sesión (sigue viva en el servidor).",
@@ -170,6 +205,7 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                         val attempt = reconnectAttempt
                         if (attempt != null) {
                             StatusBanner(
+                                palette = palette,
                                 icon = null,
                                 title = "Reconectando… (intento $attempt de ${TerminalViewModel.MAX_AUTO_RECONNECTS})",
                                 message = "Se perdió la conexión. Reintentando automáticamente.",
@@ -177,6 +213,7 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                             )
                         } else {
                             StatusBanner(
+                                palette = palette,
                                 icon = Icons.Outlined.WarningAmber,
                                 title = "No se pudo abrir el terminal",
                                 message = s.message,
@@ -186,9 +223,10 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                     }
                 }
 
-                if (uploading) UploadPill(Modifier.align(Alignment.TopCenter))
+                if (uploading) UploadPill(palette, Modifier.align(Alignment.TopCenter))
             }
             ExtraKeysBar(
+                palette = palette,
                 modifiers = modifiers,
                 enabled = status == TerminalStatus.Connected,
                 onKey = { key -> terminalView?.let { sendExtraKey(it, key, modifiers) } },
@@ -235,17 +273,68 @@ private fun sendExtraKey(view: TerminalView, key: ExtraKey, modifiers: StickyMod
  * terminal reset (RIS) keeps them.
  */
 private fun applyPalette(view: TerminalView, palette: TerminalPalette) {
-    val defaults = TerminalColors.COLOR_SCHEME.mDefaultColors
-    defaults[TextStyle.COLOR_INDEX_FOREGROUND] = palette.foreground
-    defaults[TextStyle.COLOR_INDEX_BACKGROUND] = palette.background
-    defaults[TextStyle.COLOR_INDEX_CURSOR] = palette.cursor
-    view.mEmulator?.mColors?.mCurrentColors?.let { current ->
-        current[TextStyle.COLOR_INDEX_FOREGROUND] = palette.foreground
-        current[TextStyle.COLOR_INDEX_BACKGROUND] = palette.background
-        current[TextStyle.COLOR_INDEX_CURSOR] = palette.cursor
+    fun IntArray.fill() {
+        palette.ansi.copyInto(this, destinationOffset = 0)
+        this[TextStyle.COLOR_INDEX_FOREGROUND] = palette.foreground
+        this[TextStyle.COLOR_INDEX_BACKGROUND] = palette.background
+        this[TextStyle.COLOR_INDEX_CURSOR] = palette.cursor
     }
+    TerminalColors.COLOR_SCHEME.mDefaultColors.fill()
+    view.mEmulator?.mColors?.mCurrentColors?.fill()
     view.setBackgroundColor(palette.background)
     view.invalidate()
+}
+
+/**
+ * JetBrains Mono (bundled, OFL): crisp and consistent on every phone, unlike the system mono.
+ * On Android 10+ it falls back to bundled Noto Sans Symbols 2 / Symbols BEFORE the system fonts, so
+ * glyphs CLI tools love (Claude Code's ⏺ ⎿ ✻, braille spinners, ✔ ⏸…) render as monochrome text
+ * instead of color emoji.
+ */
+private var cachedTypeface: Typeface? = null
+
+private fun terminalTypeface(context: Context): Typeface? {
+    cachedTypeface?.let { return it }
+    val typeface = try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val res = context.resources
+            fun family(fontRes: Int) =
+                android.graphics.fonts.FontFamily.Builder(android.graphics.fonts.Font.Builder(res, fontRes).build()).build()
+            Typeface.CustomFallbackBuilder(family(R.font.jetbrains_mono))
+                .addCustomFallback(family(R.font.noto_sans_symbols2))
+                .addCustomFallback(family(R.font.noto_sans_symbols))
+                .setSystemFallback("monospace")
+                .build()
+        } else {
+            ResourcesCompat.getFont(context, R.font.jetbrains_mono)
+        }
+    } catch (e: Exception) {
+        // Never block the terminal over a font: the system monospace still works.
+        Log.e("Argos/Terminal", "Could not load bundled terminal fonts", e)
+        null
+    }
+    cachedTypeface = typeface
+    return typeface
+}
+
+/** Same font for terminal-ish Compose text (title, keys). */
+val TerminalFont = FontFamily(Font(R.font.jetbrains_mono))
+
+/** Status/navigation bar icons readable on the terminal's colors; restored when leaving. */
+@Composable
+private fun StatusBarIconsFor(palette: TerminalPalette, restoreLight: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    DisposableEffect(palette.isLight) {
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        controller?.isAppearanceLightStatusBars = palette.isLight
+        controller?.isAppearanceLightNavigationBars = palette.isLight
+        onDispose {
+            controller?.isAppearanceLightStatusBars = restoreLight
+            controller?.isAppearanceLightNavigationBars = restoreLight
+        }
+    }
 }
 
 private fun spToPx(context: Context, sp: Int): Int =
@@ -304,37 +393,47 @@ private class ArgosTerminalViewClient(
 }
 
 @Composable
-private fun ConnectingOverlay(sessionName: String, background: Color) {
-    Box(Modifier.fillMaxSize().background(background), contentAlignment = Alignment.Center) {
-        Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 3.dp) {
-            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator()
-                Spacer(Modifier.size(16.dp))
-                Text("Conectando a la sesión", style = MaterialTheme.typography.titleMedium)
-                Text(sessionName, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+private fun ConnectingOverlay(sessionName: String, palette: TerminalPalette) {
+    val fg = Color(palette.foreground)
+    Box(Modifier.fillMaxSize().background(Color(palette.background)), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = Color(palette.ansi[4]), strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
+            Spacer(Modifier.size(18.dp))
+            Text("Conectando a la sesión", color = fg, style = MaterialTheme.typography.titleMedium)
+            Text(sessionName, fontFamily = TerminalFont, color = fg.copy(alpha = 0.6f))
         }
     }
 }
 
 @Composable
-private fun StatusBanner(icon: ImageVector?, title: String, message: String, onReconnect: (() -> Unit)?) {
+private fun StatusBanner(palette: TerminalPalette, icon: ImageVector?, title: String, message: String, onReconnect: (() -> Unit)?) {
+    val fg = Color(palette.foreground)
+    val accent = Color(palette.ansi[4])
     Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomCenter) {
-        Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 6.dp, shadowElevation = 4.dp) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = Color(palette.chrome),
+            contentColor = fg,
+            border = BorderStroke(1.dp, fg.copy(alpha = 0.12f)),
+            shadowElevation = 8.dp,
+        ) {
             Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 if (icon != null) {
-                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(icon, contentDescription = null, tint = accent)
                 } else {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(Modifier.size(20.dp), color = accent, strokeWidth = 2.dp)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleSmall)
-                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(message, style = MaterialTheme.typography.bodySmall, color = fg.copy(alpha = 0.7f))
                 }
                 if (onReconnect != null) {
                     Spacer(Modifier.width(8.dp))
-                    Button(onClick = onReconnect) { Text("Reconectar") }
+                    Button(
+                        onClick = onReconnect,
+                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color(palette.background)),
+                    ) { Text("Reconectar") }
                 }
             }
         }
@@ -342,10 +441,18 @@ private fun StatusBanner(icon: ImageVector?, title: String, message: String, onR
 }
 
 @Composable
-private fun UploadPill(modifier: Modifier = Modifier) {
-    Surface(modifier.padding(top = 12.dp), shape = CircleShape, tonalElevation = 6.dp, shadowElevation = 4.dp) {
+private fun UploadPill(palette: TerminalPalette, modifier: Modifier = Modifier) {
+    val fg = Color(palette.foreground)
+    Surface(
+        modifier.padding(top = 12.dp),
+        shape = CircleShape,
+        color = Color(palette.chrome),
+        contentColor = fg,
+        border = BorderStroke(1.dp, fg.copy(alpha = 0.12f)),
+        shadowElevation = 6.dp,
+    ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            CircularProgressIndicator(Modifier.size(16.dp), color = Color(palette.ansi[4]), strokeWidth = 2.dp)
             Spacer(Modifier.width(8.dp))
             Text("Subiendo al servidor…", style = MaterialTheme.typography.bodyMedium)
         }

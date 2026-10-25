@@ -19,3 +19,7 @@ They are vendored in terminal/ with these modifications:
 It also uses, as dependencies (not vendored): sshj (Apache 2.0),
 Bouncy Castle (MIT-style Bouncy Castle License), AndroidX / Jetpack Compose and
 kotlinx libraries (Apache 2.0).
+
+Bundled fonts (SIL Open Font License 1.1, texts in third_party/):
+- JetBrains Mono NL, Copyright 2020 The JetBrains Mono Project Authors.
+- Noto Sans Symbols and Noto Sans Symbols 2, Copyright 2022 The Noto Project Authors.
