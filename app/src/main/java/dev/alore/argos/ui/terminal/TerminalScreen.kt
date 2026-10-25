@@ -229,7 +229,10 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                 palette = palette,
                 modifiers = modifiers,
                 enabled = status == TerminalStatus.Connected,
-                onKey = { key -> terminalView?.let { sendExtraKey(it, key, modifiers) } },
+                onKey = { key ->
+                    if (key == ExtraKey.Paste) viewModel.pasteFromClipboard()
+                    else terminalView?.let { sendExtraKey(it, key, modifiers) }
+                },
             )
         }
     }
@@ -265,6 +268,7 @@ private fun sendExtraKey(view: TerminalView, key: ExtraKey, modifiers: StickyMod
             session.write(key.bytes, 0, key.bytes.size)
             modifiers.reset()
         }
+        ExtraKey.Paste -> Unit // Handled by the view model (it may upload an image).
     }
 }
 

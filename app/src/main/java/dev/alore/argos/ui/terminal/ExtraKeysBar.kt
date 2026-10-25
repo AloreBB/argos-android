@@ -28,25 +28,40 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.alore.argos.data.TerminalPalette
 
-/** A key of the extra row: an Android key code (respects cursor/keypad app modes), a char, or raw bytes. */
+/**
+ * A key of the extra row: an Android key code (respects cursor/keypad app modes), a char, raw
+ * bytes, or the smart paste action.
+ */
 sealed interface ExtraKey {
     val label: String
     val description: String
+
+    /** Same as the top bar's "Pegar": text is pasted, an image is uploaded and its path typed. */
+    data object Paste : ExtraKey {
+        override val label = "PEGAR"
+        override val description = "Pegar desde el portapapeles"
+    }
 
     data class Code(override val label: String, override val description: String, val keyCode: Int) : ExtraKey
     data class Char(override val label: String, override val description: String, val char: kotlin.Char) : ExtraKey
     class Raw(override val label: String, override val description: String, val bytes: ByteArray) : ExtraKey
 }
 
-/** What the soft keyboard lacks for tmux/shell work. ^B is tmux's default prefix. */
-private val KEYS: List<ExtraKey> = listOf(
-    ExtraKey.Code("ESC", "Escape", KeyEvent.KEYCODE_ESCAPE),
+/** Most used first, so they fit on screen without scrolling: paste, enter, tab and arrows. */
+private val PRIMARY_KEYS: List<ExtraKey> = listOf(
+    ExtraKey.Paste,
+    ExtraKey.Code("⏎", "Enter", KeyEvent.KEYCODE_ENTER),
     ExtraKey.Code("TAB", "Tabulador", KeyEvent.KEYCODE_TAB),
-    ExtraKey.Raw("^B", "Prefijo de tmux (Ctrl+B)", byteArrayOf(0x02)),
     ExtraKey.Code("←", "Flecha izquierda", KeyEvent.KEYCODE_DPAD_LEFT),
-    ExtraKey.Code("↓", "Flecha abajo", KeyEvent.KEYCODE_DPAD_DOWN),
     ExtraKey.Code("↑", "Flecha arriba", KeyEvent.KEYCODE_DPAD_UP),
+    ExtraKey.Code("↓", "Flecha abajo", KeyEvent.KEYCODE_DPAD_DOWN),
     ExtraKey.Code("→", "Flecha derecha", KeyEvent.KEYCODE_DPAD_RIGHT),
+    ExtraKey.Code("ESC", "Escape", KeyEvent.KEYCODE_ESCAPE),
+)
+
+/** After the CTRL/ALT toggles, scrolling right. ^B is tmux's default prefix. */
+private val SECONDARY_KEYS: List<ExtraKey> = listOf(
+    ExtraKey.Raw("^B", "Prefijo de tmux (Ctrl+B)", byteArrayOf(0x02)),
     ExtraKey.Code("PGUP", "Re Pág", KeyEvent.KEYCODE_PAGE_UP),
     ExtraKey.Code("PGDN", "Av Pág", KeyEvent.KEYCODE_PAGE_DOWN),
     ExtraKey.Code("HOME", "Inicio", KeyEvent.KEYCODE_MOVE_HOME),
@@ -68,9 +83,10 @@ fun ExtraKeysBar(palette: TerminalPalette, modifiers: StickyModifiers, enabled: 
             .padding(horizontal = 6.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
+        for (key in PRIMARY_KEYS) Key(key.label, key.description, palette, enabled) { onKey(key) }
         Key("CTRL", "Control (siguiente tecla)", palette, enabled, active = modifiers.ctrl) { modifiers.ctrl = !modifiers.ctrl }
         Key("ALT", "Alt (siguiente tecla)", palette, enabled, active = modifiers.alt) { modifiers.alt = !modifiers.alt }
-        for (key in KEYS) Key(key.label, key.description, palette, enabled) { onKey(key) }
+        for (key in SECONDARY_KEYS) Key(key.label, key.description, palette, enabled) { onKey(key) }
     }
 }
 

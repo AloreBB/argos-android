@@ -98,6 +98,13 @@ class AppEndToEndTest {
         compose.waitUntil(15_000) { terminalText().contains("e2e/api:") }
         screenshot("02-terminal")
 
+        // Extra keys row: smart paste + Enter really reach the shell.
+        val clipboard = compose.activity.getSystemService(android.content.ClipboardManager::class.java)
+        compose.runOnUiThread { clipboard.setPrimaryClip(android.content.ClipData.newPlainText("t", "echo pegado-\$((6*7))")) }
+        compose.onNode(hasContentDescription("Pegar desde el portapapeles")).performClick()
+        compose.onNode(hasContentDescription("Enter")).performClick()
+        compose.waitUntil(15_000) { terminalText().contains("pegado-42") }
+
         // Back = detach: the session survives and no client stays attached.
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitUntilAtLeastOneExists(hasText("demo"), timeoutMillis = 15_000)
