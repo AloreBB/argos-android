@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Argos Panoptes' eye with a terminal prompt as the pupil. 108dp adaptive canvas, 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Eye outline -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#B2C5FF"
+        android:strokeWidth="4"
+        android:strokeLineJoin="round"
+        android:pathData="M26,54 C34,40 44,34 54,34 C64,34 74,40 82,54 C74,68 64,74 54,74 C44,74 34,68 26,54 Z" />
+    <!-- Iris -->
+    <path
+        android:fillColor="#3B5BA9"
+        android:pathData="M54,54 m-14,0 a14,14 0 1,1 28,0 a14,14 0 1,1 -28,0" />
+    <!-- Prompt chevron ">" -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M47,48 L53,54 L47,60" />
+    <!-- Prompt cursor "_" -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#4CDADB"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M56,60 L62,60" />
+</vector>
