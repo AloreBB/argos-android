@@ -38,6 +38,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
 import com.termux.terminal.KeyHandler;
+import com.termux.terminal.TerminalBuffer;
 import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.view.textselection.TextSelectionCursorController;
@@ -143,6 +144,7 @@ public final class TerminalView extends View {
             public boolean onUp(MotionEvent event) {
                 mScrollRemainder = 0.0f;
                 if (mEmulator != null && mEmulator.isMouseTrackingActive() && !event.isFromSource(InputDevice.SOURCE_MOUSE) && !isSelectingText() && !scrolledWithFinger) {
+                    if (openLinkAt(event)) return true;
                     // Quick event processing when mouse tracking is active - do not wait for check of double tapping
                     // for zooming.
                     sendMouseEventCode(event, TerminalEmulator.MOUSE_LEFT_BUTTON, true);
@@ -162,6 +164,7 @@ public final class TerminalView extends View {
                     return true;
                 }
                 requestFocus();
+                if (!event.isFromSource(InputDevice.SOURCE_MOUSE) && openLinkAt(event)) return true;
                 mClient.onSingleTapUp(event);
                 return true;
             }
@@ -553,6 +556,37 @@ public final class TerminalView extends View {
         return new int[] { column, row };
     }
 
+    /** Returns the hyperlink under the event: the cell's OSC 8 URI, else a URL in the word there. */
+    @Nullable
+    public String getLinkAt(MotionEvent event) {
+        if (mEmulator == null) return null;
+        int[] columnAndRow = getColumnAndRow(event, true);
+        int column = columnAndRow[0], row = columnAndRow[1];
+        TerminalBuffer screen = mEmulator.getScreen();
+        if (column < 0 || column >= mEmulator.mColumns || row < -screen.getActiveTranscriptRows() || row >= mEmulator.mRows) return null;
+        String uri = screen.getLinkAt(row, column);
+        return uri != null ? uri : urlInWord(screen.getWordAtLocation(column, row));
+    }
+
+    private boolean openLinkAt(MotionEvent event) {
+        String uri = getLinkAt(event);
+        if (uri == null) return false;
+        mClient.onLinkClick(uri);
+        return true;
+    }
+
+    /** The http(s) URL in a whitespace-delimited word, without surrounding brackets or punctuation. */
+    @Nullable
+    static String urlInWord(String word) {
+        int start = word.indexOf("http://");
+        if (start < 0) start = word.indexOf("https://");
+        if (start < 0) return null;
+        int end = word.length();
+        while (end > start && ".,;:!?)]}>\"'`".indexOf(word.charAt(end - 1)) >= 0) end--;
+        String url = word.substring(start, end);
+        return url.length() > "https://".length() ? url : null;
+    }
+
     /** Send a single mouse event code to the terminal. */
     void sendMouseEventCode(MotionEvent e, int button, boolean pressed) {
         int[] columnAndRow = getColumnAndRow(e, false);
@@ -613,6 +647,11 @@ public final class TerminalView extends View {
             mGestureRecognizer.onTouchEvent(event);
             return true;
         } else if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+            if ((event.getMetaState() & (KeyEvent.META_CTRL_ON | KeyEvent.META_META_ON)) != 0 || mClient.readControlKey()) {
+                // Ctrl/Cmd + click opens the link under the pointer; the click never reaches tmux.
+                if (action == MotionEvent.ACTION_UP && openLinkAt(event)) return true;
+                if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_UP) return true;
+            }
             if (event.isButtonPressed(MotionEvent.BUTTON_SECONDARY)) {
                 if (action == MotionEvent.ACTION_DOWN) showContextMenu();
                 return true;

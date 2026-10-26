@@ -40,6 +40,8 @@ object TmuxOutput {
         // which copies to the Android clipboard. `Ms` declares OSC 52 support explicitly.
         "set -g set-clipboard on",
         "set -ga terminal-overrides \",*:Ms=\\\\E]52;%p1%s;%p2%s\\\\007\"",
+        // Pass OSC 8 hyperlinks (Claude Code's PR/branch links) through to the terminal (tmux 3.4+).
+        "set -as terminal-features \",*:hyperlinks\"",
     ).joinToString("\n")
 
     /** Idempotent, race-safe write of [DEFAULT_CONFIG]: never overwrites an existing file. */

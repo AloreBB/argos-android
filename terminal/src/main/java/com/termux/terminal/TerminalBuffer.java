@@ -528,6 +528,15 @@ public final class TerminalBuffer {
         allocateFullLineIfNecessary(row).setChar(column, codePoint, style);
     }
 
+    public void setLink(int column, int row, String uri) {
+        allocateFullLineIfNecessary(externalToInternalRow(row)).setLink(column, uri);
+    }
+
+    public String getLinkAt(int externalRow, int column) {
+        TerminalRow line = mLines[externalToInternalRow(externalRow)];
+        return line == null ? null : line.getLink(column);
+    }
+
     public long getStyleAt(int externalRow, int column) {
         return allocateFullLineIfNecessary(externalToInternalRow(externalRow)).getStyle(column);
     }

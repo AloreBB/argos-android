@@ -213,6 +213,8 @@ public final class TerminalEmulator {
 
 
     private String mTitle;
+    /** URI of the open OSC 8 hyperlink, stamped on every printed cell until closed. */
+    private String mHyperlink;
     private final Stack<String> mTitleStack = new Stack<>();
 
     /** The cursor position. Between (0,0) and (mRows-1, mColumns-1). */
@@ -2847,6 +2849,10 @@ public final class TerminalEmulator {
                     }
                 }
                 break;
+            case 8: // Hyperlink: "8;params;URI". An empty URI closes the link.
+                String uri = textParameter.substring(textParameter.indexOf(';') + 1);
+                mHyperlink = uri.isEmpty() ? null : uri;
+                break;
             case 52: // Manipulate Selection Data. Skip the optional first selection parameter(s).
                 int startIndex = textParameter.indexOf(";") + 1;
                 try {
@@ -3426,6 +3432,7 @@ public final class TerminalEmulator {
         // TODO: Check if there are thread synchronization issues with mCursorCol and mCursorRow, possibly causing others bugs too.
         if (column < 0) column = 0;
         mScreen.setChar(column, mCursorRow, codePoint, getStyle());
+        if (mHyperlink != null) mScreen.setLink(column, mCursorRow, mHyperlink);
 
         if (autoWrap && displayWidth > 0)
             mAboutToAutoWrap = (mCursorCol == mRightMargin - displayWidth);
@@ -3485,6 +3492,7 @@ public final class TerminalEmulator {
     /** Reset terminal state so user can interact with it regardless of present state. */
     public void reset() {
         setCursorStyle();
+        mHyperlink = null;
         mArgIndex = 0;
         mContinueSequence = false;
         mEscapeState = ESC_NONE;

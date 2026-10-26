@@ -51,6 +51,8 @@ public final class TerminalRow {
     boolean mHasNonOneWidthOrSurrogateChars;
     /** If this row has a {@link TerminalBitmap}. Used for performance only. */
     public boolean mHasTerminalBitmap;
+    /** OSC 8 hyperlink URI of each cell, or null if the row has none. Allocated on first link. */
+    private String[] mLinks;
 
     /** Construct a blank row (containing only whitespace, ' ') with a specified style. */
     public TerminalRow(int columns, long style) {
@@ -83,6 +85,7 @@ public final class TerminalRow {
                 latestNonCombiningWidth = w;
             }
             setChar(destinationX, codePoint, line.getStyle(sourceX1));
+            setLink(destinationX, line.getLink(sourceX1));
         }
     }
 
@@ -149,6 +152,19 @@ public final class TerminalRow {
         mSpaceUsed = mColumns;
         mHasNonOneWidthOrSurrogateChars = false;
         mHasTerminalBitmap = false;
+        mLinks = null;
+    }
+
+    public String getLink(int column) {
+        return mLinks == null ? null : mLinks[column];
+    }
+
+    public void setLink(int column, String uri) {
+        if (mLinks == null) {
+            if (uri == null) return;
+            mLinks = new String[mColumns];
+        }
+        mLinks[column] = uri;
     }
 
     // https://github.com/steven676/Android-Terminal-Emulator/commit/9a47042620bec87617f0b4f5d50568535668fe26
@@ -157,6 +173,7 @@ public final class TerminalRow {
             throw new IllegalArgumentException("TerminalRow.setChar(): columnToSet=" + columnToSet + ", codePoint=" + codePoint + ", style=" + style);
 
         mStyle[columnToSet] = style;
+        if (mLinks != null) mLinks[columnToSet] = null;
 
         if (!mHasTerminalBitmap && TextStyle.isTerminalBitmap(style)) {
             mHasTerminalBitmap = true;
