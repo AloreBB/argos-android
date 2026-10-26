@@ -28,6 +28,9 @@ public interface TerminalViewClient {
      */
     void onSingleTapUp(MotionEvent e);
 
+    /** A tap (or Ctrl/Cmd + mouse click) landed on a hyperlink: OSC 8 or a URL in the text. */
+    void onLinkClick(String uri);
+
     boolean shouldBackButtonBeMappedToEscape();
 
     boolean shouldEnforceCharBasedInput();

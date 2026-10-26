@@ -16,6 +16,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    testOptions {
+        // TerminalEmulator touches android.util.* stubs; JVM tests only need their defaults.
+        unitTests.isReturnDefaultValues = true
+    }
+
     lint {
         // Upstream code; we don't own its lint debt.
         abortOnError = false
@@ -24,4 +29,5 @@ android {
 
 dependencies {
     implementation(libs.androidx.annotation)
+    testImplementation(libs.junit)
 }

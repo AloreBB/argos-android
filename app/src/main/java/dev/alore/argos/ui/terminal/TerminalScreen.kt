@@ -1,6 +1,9 @@
 package dev.alore.argos.ui.terminal
 
+import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.app.Activity
 import android.os.Build
 import android.graphics.Typeface
@@ -365,6 +368,18 @@ private class ArgosTerminalViewClient(
     }
 
     override fun onSingleTapUp(e: MotionEvent?) = showKeyboard(view)
+
+    override fun onLinkClick(uri: String?) {
+        modifiers.reset()
+        val parsed = Uri.parse(uri ?: return)
+        // The URI comes from the remote host: only web links, never intent:/file:/content:.
+        if (parsed.scheme?.lowercase() !in setOf("http", "https")) return
+        try {
+            view.context.startActivity(Intent(Intent.ACTION_VIEW, parsed))
+        } catch (e: ActivityNotFoundException) {
+            Log.w("Argos", "No app to open $parsed", e)
+        }
+    }
     override fun shouldBackButtonBeMappedToEscape() = false
     // Char-based input behaves consistently across Gboard/Samsung keyboards.
     override fun shouldEnforceCharBasedInput() = true
