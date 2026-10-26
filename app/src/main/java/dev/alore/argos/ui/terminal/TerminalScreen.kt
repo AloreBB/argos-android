@@ -46,7 +46,9 @@ import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -103,6 +105,7 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
 
     val modifiers = remember { StickyModifiers() }
     var terminalView by remember { mutableStateOf<TerminalView?>(null) }
+    var tappedLink by remember { mutableStateOf<Uri?>(null) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
 
@@ -155,6 +158,14 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
+        tappedLink?.let { link ->
+            LinkDialog(
+                link = link,
+                onOpen = { openInBrowser(terminalView ?: return@LinkDialog, link); tappedLink = null },
+                onCopy = { viewModel.copyLink(link.toString()); tappedLink = null },
+                onDismiss = { tappedLink = null },
+            )
+        }
         Column(
             Modifier
                 .padding(padding)
@@ -168,7 +179,7 @@ fun TerminalScreen(onBack: () -> Unit, viewModel: TerminalViewModel = viewModel(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 4.dp),
                     factory = { ctx ->
                         TerminalView(ctx, null).apply {
-                            setTerminalViewClient(ArgosTerminalViewClient(this, modifiers, settings))
+                            setTerminalViewClient(ArgosTerminalViewClient(this, modifiers, settings) { tappedLink = it })
                             // setTextSize creates the renderer; anything touching the renderer
                             // (setTypeface) must come after it. Later size changes keep the font.
                             setTextSize(spToPx(ctx, fontSize))
@@ -358,6 +369,7 @@ private class ArgosTerminalViewClient(
     private val view: TerminalView,
     private val modifiers: StickyModifiers,
     private val settings: TerminalSettings,
+    private val onLink: (Uri) -> Unit,
 ) : TerminalViewClient {
     override fun onScale(scale: Float): Float {
         if (scale < 0.9f || scale > 1.1f) {
@@ -373,12 +385,7 @@ private class ArgosTerminalViewClient(
         modifiers.reset()
         val parsed = Uri.parse(uri ?: return)
         // The URI comes from the remote host: only web links, never intent:/file:/content:.
-        if (parsed.scheme?.lowercase() !in setOf("http", "https")) return
-        try {
-            view.context.startActivity(Intent(Intent.ACTION_VIEW, parsed))
-        } catch (e: ActivityNotFoundException) {
-            Log.w("Argos", "No app to open $parsed", e)
-        }
+        if (parsed.scheme?.lowercase() in setOf("http", "https")) onLink(parsed)
     }
     override fun shouldBackButtonBeMappedToEscape() = false
     // Char-based input behaves consistently across Gboard/Samsung keyboards.
@@ -409,6 +416,26 @@ private class ArgosTerminalViewClient(
     override fun logVerbose(tag: String?, message: String?) { Log.v(tag, message.orEmpty()) }
     override fun logStackTraceWithMessage(tag: String?, message: String?, e: Exception?) { Log.e(tag, message.orEmpty(), e) }
     override fun logStackTrace(tag: String?, e: Exception?) { Log.e(tag, "", e) }
+}
+
+/** Termius-style choice for a tapped link: open it in the browser or copy it. */
+@Composable
+private fun LinkDialog(link: Uri, onOpen: () -> Unit, onCopy: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Enlace") },
+        text = { Text(link.toString(), fontFamily = TerminalFont, maxLines = 6, overflow = TextOverflow.Ellipsis) },
+        confirmButton = { TextButton(onClick = onOpen) { Text("Abrir en el navegador") } },
+        dismissButton = { TextButton(onClick = onCopy) { Text("Copiar") } },
+    )
+}
+
+private fun openInBrowser(view: TerminalView, link: Uri) {
+    try {
+        view.context.startActivity(Intent(Intent.ACTION_VIEW, link))
+    } catch (e: ActivityNotFoundException) {
+        Log.w("Argos", "No app to open $link", e)
+    }
 }
 
 @Composable

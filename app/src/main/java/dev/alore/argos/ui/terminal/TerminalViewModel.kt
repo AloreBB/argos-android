@@ -281,6 +281,11 @@ class TerminalViewModel(application: Application, savedStateHandle: SavedStateHa
         return uri.lastPathSegment ?: "archivo"
     }
 
+    fun copyLink(url: String) {
+        copyToClipboard(url)
+        _messages.trySend("Enlace copiado")
+    }
+
     private fun copyToClipboard(text: String) {
         clipboard.setPrimaryClip(ClipData.newPlainText("Argos", text))
     }
