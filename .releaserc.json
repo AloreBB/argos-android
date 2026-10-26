@@ -1,0 +1,49 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    ["@semantic-release/commit-analyzer", { "preset": "conventionalcommits" }],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "Novedades" },
+            { "type": "fix", "section": "Correcciones" },
+            { "type": "perf", "section": "Rendimiento" },
+            { "type": "refactor", "section": "Otros cambios" },
+            { "type": "build", "section": "Otros cambios" },
+            { "type": "docs", "hidden": true },
+            { "type": "ci", "hidden": true },
+            { "type": "test", "hidden": true },
+            { "type": "chore", "hidden": true },
+            { "type": "style", "hidden": true }
+          ]
+        }
+      }
+    ],
+    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md", "changelogTitle": "# Changelog" }],
+    ["@semantic-release/exec", { "prepareCmd": "scripts/build-release-apk.sh ${nextRelease.version}" }],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          { "path": "dist/Argos-*.apk", "label": "Argos ${nextRelease.version} (APK)" },
+          { "path": "dist/Argos-*.apk.sha256", "label": "SHA-256" }
+        ],
+        "releaseNameTemplate": "Argos v<%= nextRelease.version %>",
+        "releaseBodyTemplate": "<%= nextRelease.notes %>\n\n## Instalación\n\nDescarga `Argos-<%= nextRelease.version %>.apk` en el teléfono y ábrelo (permite \"instalar apps desconocidas\" para tu navegador). Las actualizaciones se instalan encima. Requiere Android 8.0+.",
+        "successComment": false,
+        "releasedLabels": false
+      }
+    ]
+  ]
+}

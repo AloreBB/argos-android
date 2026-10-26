@@ -1,8 +1,9 @@
 name: Release APK
 
-# Every push to main (PR merges included): scripts/next-release.sh reads the commits since the last
-# vX.Y.Z tag, picks the semver bump and writes the notes. feat/fix/perf/breaking -> signed APK on a
-# new GitHub Release; docs/ci/test/chore-only pushes publish nothing.
+# Every push to main (PR merges included) runs semantic-release (.releaserc.json): it reads the
+# Conventional Commits since the last vX.Y.Z tag, picks the version, updates CHANGELOG.md, builds and
+# signs the APK (scripts/build-release-apk.sh) and publishes it on a GitHub Release.
+# docs/ci/test/chore-only pushes publish nothing.
 on:
   push:
     branches: [main]
@@ -15,47 +16,21 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: read
 
 jobs:
-  plan:
+  release:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      release: ${{ steps.next.outputs.release }}
-      version: ${{ steps.next.outputs.version }}
-      tag: ${{ steps.next.outputs.tag }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Decide version and write notes
-        id: next
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          scripts/next-release.sh "$RUNNER_TEMP/notes.md" | tee -a "$GITHUB_OUTPUT"
-          cat "$RUNNER_TEMP/notes.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload notes
-        if: steps.next.outputs.release == 'true'
-        uses: actions/upload-artifact@v4
+      - uses: actions/setup-node@v5
         with:
-          name: release-notes
-          path: ${{ runner.temp }}/notes.md
-          retention-days: 7
-
-  release:
-    needs: plan
-    if: needs.plan.outputs.release == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      VERSION: ${{ needs.plan.outputs.version }}
-      TAG: ${{ needs.plan.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v5
+          node-version: 24
 
       - uses: actions/setup-java@v6
         with:
@@ -75,35 +50,18 @@ jobs:
           echo "$ARGOS_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "ARGOS_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
-      - name: Test and build release APK
+      - name: semantic-release
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           ARGOS_KEYSTORE_PASSWORD: ${{ secrets.ARGOS_KEYSTORE_PASSWORD }}
           ARGOS_KEY_ALIAS: ${{ secrets.ARGOS_KEY_ALIAS }}
           ARGOS_KEY_PASSWORD: ${{ secrets.ARGOS_KEY_PASSWORD }}
-        run: ./gradlew :app:testDebugUnitTest :app:assembleRelease -PversionName="$VERSION" --console=plain
-
-      - name: Verify signature and package
-        run: |
-          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
-          SRC=app/build/outputs/apk/release/app-release.apk
-          "$APKSIGNER" verify --print-certs "$SRC" | tee certs.txt
-          if grep -q "CN=Android Debug" certs.txt; then
-            echo "::error::APK is signed with the debug key"; exit 1
-          fi
-          cp "$SRC" "Argos-$VERSION.apk"
-          sha256sum "Argos-$VERSION.apk" > "Argos-$VERSION.apk.sha256"
-          cat "Argos-$VERSION.apk.sha256"
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: release-notes
-
-      # gh creates the tag on the commit that was built.
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$TAG" "Argos-$VERSION.apk" "Argos-$VERSION.apk.sha256" \
-            --target "$GITHUB_SHA" \
-            --title "Argos $TAG" \
-            --notes-file notes.md
+        run: >
+          npx --yes
+          -p semantic-release@25.0.9
+          -p @semantic-release/exec@7.1.0
+          -p @semantic-release/changelog@7.0.0
+          -p @semantic-release/git@11.0.1
+          -p @semantic-release/github@12.0.10
+          -p conventional-changelog-conventionalcommits@9.3.1
+          semantic-release

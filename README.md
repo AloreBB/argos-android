@@ -87,22 +87,16 @@ La CI ejecuta todo lo anterior en cada push.
 
 ## Publicar una versión
 
-Es automático: cada push a `main` (incluido el merge de un PR) corre el workflow `Release APK`. `scripts/next-release.sh` revisa los commits desde el último tag `vX.Y.Z`, incluidos los de cada PR mergeado, y decide la versión con [Conventional Commits](https://www.conventionalcommits.org/):
+Es automático. Cada push a `main` (incluido el merge de un PR) corre [semantic-release](https://semantic-release.gitbook.io/) (`.releaserc.json`). Este revisa los commits desde el último tag `vX.Y.Z` y decide la versión con [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Commits | Versión |
 |---|---|
 | `tipo!:` o footer `BREAKING CHANGE:` | major (`2.0.0`) |
 | `feat` | minor (`1.4.0`) |
 | `fix` o `perf` | patch (`1.3.1`) |
-| solo `docs`, `ci`, `test`, `chore`, `refactor`… | no publica |
+| solo `docs`, `ci`, `test`, `chore`… | no publica |
 
-Las notas se arman agrupando cada PR (título, `#número` y autor) en Novedades, Correcciones, Rendimiento o Cambios incompatibles. Para ver qué saldría sin publicar nada:
-
-```bash
-scripts/next-release.sh /tmp/notas.md && cat /tmp/notas.md
-```
-
-El workflow compila con `versionName` igual a la versión decidida, firma con la clave de release (secrets `ARGOS_KEYSTORE_BASE64`, `ARGOS_KEYSTORE_PASSWORD`, `ARGOS_KEY_ALIAS` y `ARGOS_KEY_PASSWORD`), verifica la firma y publica `Argos-X.Y.Z.apk` y su SHA-256 en un GitHub Release, creando el tag sobre ese commit.
+Si toca publicar, actualiza el [`CHANGELOG.md`](CHANGELOG.md) y lo commitea como `chore(release): X.Y.Z [skip ci]`. Luego compila y firma el APK con `scripts/build-release-apk.sh`, usando la clave de release de los secrets `ARGOS_KEYSTORE_BASE64`, `ARGOS_KEYSTORE_PASSWORD`, `ARGOS_KEY_ALIAS` y `ARGOS_KEY_PASSWORD`. Antes de publicar verifica que el APK no esté firmado con la clave debug. Al final crea el tag y el GitHub Release con las notas agrupadas en Novedades, Correcciones y Rendimiento, junto a `Argos-X.Y.Z.apk` y su SHA-256.
 
 ## Licencia
 
