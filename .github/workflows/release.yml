@@ -1,13 +1,23 @@
 name: Release APK
 
-# Push a tag vX.Y.Z -> signed release APK attached to a GitHub Release.
+# Every push to main (PR merges included) runs semantic-release (.releaserc.json): it reads the
+# Conventional Commits since the last vX.Y.Z tag, picks the version, updates CHANGELOG.md, builds and
+# signs the APK (scripts/build-release-apk.sh) and publishes it on a GitHub Release.
+# docs/ci/test/chore-only pushes publish nothing.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+  workflow_dispatch:
+
+# One release at a time, never cancelled: a queued run sees the tag the previous one created.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: read
 
 jobs:
   release:
@@ -15,6 +25,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
 
       - uses: actions/setup-java@v6
         with:
@@ -34,33 +50,18 @@ jobs:
           echo "$ARGOS_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "ARGOS_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
-      - name: Test and build release APK
+      - name: semantic-release
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           ARGOS_KEYSTORE_PASSWORD: ${{ secrets.ARGOS_KEYSTORE_PASSWORD }}
           ARGOS_KEY_ALIAS: ${{ secrets.ARGOS_KEY_ALIAS }}
           ARGOS_KEY_PASSWORD: ${{ secrets.ARGOS_KEY_PASSWORD }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          ./gradlew :app:testDebugUnitTest :app:assembleRelease -PversionName="$VERSION" --console=plain
-
-      - name: Verify signature and package
-        run: |
-          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
-          SRC=app/build/outputs/apk/release/app-release.apk
-          "$APKSIGNER" verify --print-certs "$SRC" | tee certs.txt
-          if grep -q "CN=Android Debug" certs.txt; then
-            echo "::error::APK is signed with the debug key"; exit 1
-          fi
-          cp "$SRC" "Argos-$VERSION.apk"
-          sha256sum "Argos-$VERSION.apk" > "Argos-$VERSION.apk.sha256"
-          cat "Argos-$VERSION.apk.sha256"
-
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" "Argos-$VERSION.apk" "Argos-$VERSION.apk.sha256" \
-            --title "Argos $GITHUB_REF_NAME" \
-            --generate-notes \
-            --notes "Instalación: descarga Argos-$VERSION.apk en el teléfono y ábrelo (permite \"instalar apps desconocidas\" para tu navegador). Requiere Android 8.0+."
+        run: >
+          npx --yes
+          -p semantic-release@25.0.9
+          -p @semantic-release/exec@7.1.0
+          -p @semantic-release/changelog@7.0.0
+          -p @semantic-release/git@11.0.1
+          -p @semantic-release/github@12.0.10
+          -p conventional-changelog-conventionalcommits@9.3.1
+          semantic-release

@@ -87,11 +87,16 @@ La CI ejecuta todo lo anterior en cada push.
 
 ## Publicar una versión
 
-```bash
-git tag v1.2.3 && git push origin v1.2.3
-```
+Es automático. Cada push a `main` (incluido el merge de un PR) corre [semantic-release](https://semantic-release.gitbook.io/) (`.releaserc.json`). Este revisa los commits desde el último tag `vX.Y.Z` y decide la versión con [Conventional Commits](https://www.conventionalcommits.org/):
 
-El workflow `Release APK` compila con `versionName=1.2.3`, firma con la clave de release (secrets `ARGOS_KEYSTORE_BASE64`, `ARGOS_KEYSTORE_PASSWORD`, `ARGOS_KEY_ALIAS` y `ARGOS_KEY_PASSWORD`), verifica la firma y publica `Argos-1.2.3.apk` y su SHA-256 en un GitHub Release.
+| Commits | Versión |
+|---|---|
+| `tipo!:` o footer `BREAKING CHANGE:` | major (`2.0.0`) |
+| `feat` | minor (`1.4.0`) |
+| `fix` o `perf` | patch (`1.3.1`) |
+| solo `docs`, `ci`, `test`, `chore`… | no publica |
+
+Si toca publicar, actualiza el [`CHANGELOG.md`](CHANGELOG.md) y lo commitea como `chore(release): X.Y.Z [skip ci]`. Luego compila y firma el APK con `scripts/build-release-apk.sh`, usando la clave de release de los secrets `ARGOS_KEYSTORE_BASE64`, `ARGOS_KEYSTORE_PASSWORD`, `ARGOS_KEY_ALIAS` y `ARGOS_KEY_PASSWORD`. Antes de publicar verifica que el APK no esté firmado con la clave debug. Al final crea el tag y el GitHub Release con las notas agrupadas en Novedades, Correcciones y Rendimiento, junto a `Argos-X.Y.Z.apk` y su SHA-256.
 
 ## Licencia
 
